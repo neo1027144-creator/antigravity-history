@@ -28,12 +28,17 @@ def format_markdown(
         f"# {title}", "",
         f"- **Cascade ID**: `{cascade_id}`",
         f"- **Steps**: {metadata.get('stepCount', '?')}",
+        f"- **Status**: {metadata.get('status', '?')}",
         f"- **Created**: {metadata.get('createdTime', '?')}",
         f"- **Last Modified**: {metadata.get('lastModifiedTime', '?')}",
+        f"- **Last User Input**: {metadata.get('lastUserInputTime', '?')}",
     ]
 
     # Workspace info
     workspaces = metadata.get("workspaces", [])
+    if not workspaces:
+        # fallback: try trajectoryMetadata.workspaces
+        workspaces = metadata.get("trajectoryMetadata", {}).get("workspaces", [])
     if workspaces:
         ws_uris = [w.get("workspaceFolderAbsoluteUri", "") for w in workspaces if w.get("workspaceFolderAbsoluteUri")]
         if ws_uris:
