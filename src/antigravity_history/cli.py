@@ -1,11 +1,11 @@
 """
-CLI 入口 — aghistory 命令。
+CLI entry point — aghistory command.
 
-子命令：
-  export   导出对话为 Markdown / JSON / Obsidian
-  list     列出所有对话
-  recover  恢复丢失的对话
-  info     显示 LanguageServer 状态
+Subcommands:
+  export   Export conversations to Markdown / JSON / Obsidian
+  list     List all conversations
+  recover  Recover lost conversations
+  info     Show LanguageServer status
 """
 
 import os
@@ -60,7 +60,7 @@ def _discover_endpoints(
     token: Optional[str] = None,
     log: Optional[Console] = None,
 ) -> list[dict]:
-    """发现所有可用 LS 端点，失败则退出。"""
+    """Discover all available LS endpoints; exit on failure."""
     log = log or console
     if port and token:
         log.print(f"[dim]Using manual config: port={port}[/dim]")
@@ -88,7 +88,7 @@ def _discover_endpoints(
 
 
 # ════════════════════════════════
-# export 子命令
+# export subcommand
 # ════════════════════════════════
 
 @app.command()
@@ -109,7 +109,7 @@ def export(
     token: Optional[str] = typer.Option(None, "--token", help="Manually specify CSRF token"),
 ):
     """Export conversations to Markdown / JSON / Obsidian format."""
-    # 确定字段级别
+    # Determine field level
     if full:
         level = FieldLevel.FULL
     elif thinking:
@@ -122,12 +122,12 @@ def export(
 
     endpoints = _discover_endpoints(port, token)
 
-    # 获取所有 LS 实例的对话列表（合并去重）
+    # Fetch conversation list from all LS instances (merge & deduplicate)
     console.print("[dim]Fetching conversation list (scanning all workspaces)...[/dim]")
     summaries, cascade_ep = get_all_trajectories_merged(endpoints)
     console.print(f"[dim]  Found {len(summaries)} conversation(s) after merge[/dim]")
 
-    # 指定 ID（支持未索引对话按需加载）
+    # Specified IDs (support on-demand loading for unindexed conversations)
     default_ep = endpoints[0]
     if ids:
         for cid in ids:
@@ -138,7 +138,7 @@ def export(
                 }
                 cascade_ep[cid] = {"port": default_ep["port"], "csrf": default_ep["csrf"]}
 
-    # 过滤今天
+    # Filter today's conversations
     if today:
         today_str = date.today().isoformat()
         summaries = {
@@ -151,18 +151,18 @@ def export(
         console.print("[yellow]No conversations match the criteria.[/yellow]")
         raise typer.Exit(0)
 
-    # 创建输出目录
+    # Create output directory
     output_dir = Path(output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 排序：最新的在前
+    # Sort: newest first
     sorted_items = sorted(
         summaries.items(),
         key=lambda x: x[1].get("lastModifiedTime", ""),
         reverse=True,
     )
 
-    # 并发获取 + 解析（线程安全的纯函数）
+    # Concurrent fetch + parse (thread-safe pure functions)
     def _fetch_one(cascade_id, info):
         title = info.get("summary", "Untitled")
         step_count = info.get("stepCount", 1000)
@@ -171,7 +171,7 @@ def export(
         messages = parse_steps(steps, level)
         return cascade_id, title, info, messages
 
-    # Obsidian 目录提前创建
+    # Pre-create Obsidian directory
     if format in ("obsidian", "all"):
         obs_dir = output_dir / "obsidian"
         obs_dir.mkdir(exist_ok=True)
@@ -199,7 +199,7 @@ def export(
                     progress.advance(task)
                     continue
 
-                # 写文件（主线程，不同文件无冲突）
+                # Write files (main thread, no conflict between different files)
                 if format in ("md", "all"):
                     md_content = format_markdown(title, cascade_id, info, messages)
                     write_conversation(md_content, title, str(output_dir), ".md")
@@ -215,17 +215,17 @@ def export(
                 exported_count += 1
                 progress.advance(task)
 
-    # 写 JSON
+    # Write JSON
     if format in ("json", "all") and all_records:
         json_path = output_dir / "conversations_export.json"
         with open(json_path, "w", encoding="utf-8") as f:
             f.write(format_json(all_records))
 
-    # Obsidian 索引
+    # Obsidian index
     if format in ("obsidian", "all") and exported_count > 0:
         _write_obsidian_index(output_dir / "obsidian", sorted_items)
 
-    # 摘要
+    # Summary
     total_msgs = sum(len(r["messages"]) for r in all_records) if all_records else 0
 
     console.print(f"\n[bold green]Export complete![/bold green]")
@@ -238,7 +238,7 @@ def export(
 
 
 def _write_obsidian_index(obs_dir: Path, sorted_items):
-    """生成 Obsidian 对话索引。"""
+    """Generate an Obsidian conversation index."""
     lines = [
         "---",
         "tags: [antigravity, conversation, index]",
@@ -261,7 +261,7 @@ def _write_obsidian_index(obs_dir: Path, sorted_items):
 
 
 # ════════════════════════════════
-# list 子命令
+# list subcommand
 # ════════════════════════════════
 
 @app.command(name="list")
@@ -273,7 +273,7 @@ def list_conversations(
     token: Optional[str] = typer.Option(None, "--token", help="Manually specify CSRF token"),
 ):
     """List all conversations."""
-    # JSON 模式下日志走 stderr，不污染 stdout
+    # In JSON mode, logs go to stderr to keep stdout clean
     out = err_console if json_output else console
     out.print(f"\n[bold]Antigravity Conversations[/bold]\n")
 
@@ -327,7 +327,7 @@ def list_conversations(
 
 
 # ════════════════════════════════
-# recover 子命令
+# recover subcommand
 # ════════════════════════════════
 
 @app.command()
@@ -354,12 +354,12 @@ def recover(
     default_ep = endpoints[0]
     p, c = default_ep["port"], default_ep["csrf"]
 
-    # 已索引的对话（合并所有 LS）
+    # Indexed conversations (merged from all LS instances)
     indexed, _ = get_all_trajectories_merged(endpoints)
     indexed_ids = set(indexed.keys())
     console.print(f"[dim]Indexed conversations: {len(indexed_ids)}[/dim]")
 
-    # 扫描 .pb 文件
+    # Scan .pb files
     pb_files = sorted([f for f in os.listdir(conv_dir) if f.endswith('.pb')])
     console.print(f"[dim].pb files: {len(pb_files)}[/dim]\n")
 
@@ -380,7 +380,7 @@ def recover(
             console.print(f"  [yellow]Unindexed[/yellow] {cascade_id[:8]}... ({size_kb}KB)")
             continue
 
-        # 尝试通过 API 按需加载
+        # Try on-demand loading via API
         result = get_trajectory_steps(p, c, cascade_id, step_count=5)
         if result:
             activated.append(cascade_id)
@@ -389,7 +389,7 @@ def recover(
             failed.append(cascade_id)
             console.print(f"  [red]Failed[/red] {cascade_id[:8]}... ({size_kb}KB)")
 
-    # 汇总
+    # Summary
     console.print(f"\n[bold]{'─' * 40}[/bold]")
     console.print(f"  Total .pb files: {len(pb_files)}")
     console.print(f"  Indexed: {len(already_indexed)}")
@@ -404,7 +404,7 @@ def recover(
 
 
 # ════════════════════════════════
-# info 子命令
+# info subcommand
 # ════════════════════════════════
 
 @app.command()
@@ -434,7 +434,7 @@ def info(
 
 
 # ════════════════════════════════
-# version 回调
+# version callback
 # ════════════════════════════════
 
 def version_callback(value: bool):

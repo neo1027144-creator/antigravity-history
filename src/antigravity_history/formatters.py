@@ -1,8 +1,8 @@
 """
-格式化输出 — Markdown / Obsidian。
+Formatted output — Markdown / Obsidian.
 
-每个格式化函数接收 Conversation 数据，返回格式化后的字符串。
-简单直接，不搞 ABC 抽象，后续需要再重构。
+Each formatter function takes Conversation data and returns a formatted string.
+Kept simple and direct; no ABC abstractions; refactored when needed.
 """
 
 import json
@@ -14,7 +14,7 @@ from typing import Any
 
 
 # ════════════════════════════════
-# Markdown 格式
+# Markdown format
 # ════════════════════════════════
 
 def format_markdown(
@@ -23,7 +23,7 @@ def format_markdown(
     metadata: dict,
     messages: list[dict],
 ) -> str:
-    """将对话格式化为 Markdown 字符串。"""
+    """Format a conversation as a Markdown string."""
     lines = [
         f"# {title}", "",
         f"- **Cascade ID**: `{cascade_id}`",
@@ -32,7 +32,7 @@ def format_markdown(
         f"- **Last Modified**: {metadata.get('lastModifiedTime', '?')}",
     ]
 
-    # workspace 信息
+    # Workspace info
     workspaces = metadata.get("workspaces", [])
     if workspaces:
         ws_uris = [w.get("workspaceFolderAbsoluteUri", "") for w in workspaces if w.get("workspaceFolderAbsoluteUri")]
@@ -51,7 +51,7 @@ def format_markdown(
 
 
 def _format_message_md(msg: dict) -> list[str]:
-    """格式化单条消息为 Markdown 行。"""
+    """Format a single message as Markdown lines."""
     role = msg.get("role", "")
     content = msg.get("content", "")
     timestamp = msg.get("timestamp", "")
@@ -66,7 +66,7 @@ def _format_message_md(msg: dict) -> list[str]:
 
     elif role == "assistant":
         lines.append(f"## 🤖 Assistant{ts_suffix}")
-        # thinking（如果有）
+        # thinking (if present)
         thinking = msg.get("thinking")
         if thinking:
             lines.append("<details><summary>💭 Thinking</summary>")
@@ -76,7 +76,7 @@ def _format_message_md(msg: dict) -> list[str]:
             lines.append("</details>")
             lines.append("")
         lines.append(content)
-        # 元信息
+        # Meta info
         extras = []
         if msg.get("model"):
             extras.append(f"Model: `{msg['model']}`")
@@ -99,7 +99,7 @@ def _format_message_md(msg: dict) -> list[str]:
             if diff:
                 lines.append("")
                 lines.append("```diff")
-                # 截断过长的 diff
+                # Truncate overly long diff
                 if len(diff) > 3000:
                     lines.append(diff[:3000])
                     lines.append(f"... (truncated, {len(diff)} chars total)")
@@ -117,7 +117,7 @@ def _format_message_md(msg: dict) -> list[str]:
             lines.append(f"```")
             if cwd_info or exit_info:
                 lines.append(f"*{cwd_info}{exit_info}*")
-            # 命令输出
+            # Command output
             output = msg.get("output")
             if output:
                 lines.append("")
@@ -158,7 +158,7 @@ def _format_message_md(msg: dict) -> list[str]:
             lines.append(f"`{content}`{size_info}")
 
         else:
-            # 其他 tool 类型
+            # Other tool types
             if content:
                 lines.append(f"`{content[:500]}`")
 
@@ -168,11 +168,11 @@ def _format_message_md(msg: dict) -> list[str]:
 
 
 # ════════════════════════════════
-# JSON 格式
+# JSON format
 # ════════════════════════════════
 
 def format_json(conversations: list[dict]) -> str:
-    """将所有对话格式化为 JSON 字符串。"""
+    """Format all conversations as a JSON string."""
     return json.dumps(conversations, indent=2, ensure_ascii=False)
 
 
@@ -182,7 +182,7 @@ def build_conversation_record(
     metadata: dict,
     messages: list[dict],
 ) -> dict:
-    """构建单个对话的 JSON 记录。"""
+    """Build a JSON record for a single conversation."""
     record = {
         "cascade_id": cascade_id,
         "title": title,
@@ -202,7 +202,7 @@ def build_conversation_record(
 
 
 # ════════════════════════════════
-# Obsidian 格式
+# Obsidian format
 # ════════════════════════════════
 
 def format_obsidian(
@@ -211,7 +211,7 @@ def format_obsidian(
     metadata: dict,
     messages: list[dict],
 ) -> str:
-    """将对话格式化为 Obsidian 兼容的 Markdown（带 frontmatter）。"""
+    """Format a conversation as Obsidian-compatible Markdown (with frontmatter)."""
     modified = metadata.get("lastModifiedTime", "")[:10]
 
     user_count = sum(1 for m in messages if m.get("role") == "user")
@@ -241,11 +241,11 @@ def format_obsidian(
 
 
 # ════════════════════════════════
-# 文件写入工具
+# File writing utilities
 # ════════════════════════════════
 
 def safe_filename(title: str, max_len: int = 60) -> str:
-    """将标题转换为安全文件名。"""
+    """Convert a title to a safe filename."""
     return re.sub(r'[^\w\s\-]', '_', title)[:max_len].strip()
 
 
@@ -255,7 +255,7 @@ def write_conversation(
     output_dir: str,
     extension: str = ".md",
 ) -> str:
-    """将格式化内容写入文件，返回文件路径。"""
+    """Write formatted content to a file, return the file path."""
     filename = safe_filename(title) + extension
     filepath = os.path.join(output_dir, filename)
     with open(filepath, "w", encoding="utf-8") as f:
