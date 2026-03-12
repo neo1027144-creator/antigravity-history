@@ -31,7 +31,7 @@
 ## 🚀 快速开始
 
 ```bash
-pip install antigravity-history
+pip install antigravity-history==0.2.4 --index-url https://pypi.org/simple --no-cache-dir
 ```
 
 ```bash
