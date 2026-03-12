@@ -3,6 +3,8 @@
 [English](README.md) | [中文](README_zh.md)
 
 [![PyPI Version](https://img.shields.io/pypi/v/antigravity-history)](https://pypi.org/project/antigravity-history/)
+[![GitHub Release](https://img.shields.io/github/v/release/neo1027144-creator/antigravity-history)](https://github.com/neo1027144-creator/antigravity-history/releases/latest)
+[![Build](https://github.com/neo1027144-creator/antigravity-history/actions/workflows/publish.yml/badge.svg)](https://github.com/neo1027144-creator/antigravity-history/actions/workflows/publish.yml)
 [![Python](https://img.shields.io/pypi/pyversions/antigravity-history)](https://pypi.org/project/antigravity-history/)
 [![License](https://img.shields.io/github/license/neo1027144-creator/antigravity-history)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
