@@ -7,9 +7,9 @@
 [![License](https://img.shields.io/github/license/neo1027144-creator/antigravity-history)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
 
-> **Export, recover, and analyze your Antigravity AI conversations — with full fidelity.**
+> **Export and recover your Antigravity AI conversations — with full fidelity.**
 
-The **only** tool that captures AI thinking chains, code diffs, command outputs, and per-message timestamps from your Antigravity sessions. Plus, recover conversations lost after crashes or updates.
+Captures AI thinking chains, code diffs, command outputs, and per-message timestamps from your Antigravity sessions. Plus, recover conversations lost after crashes or updates.
 
 ---
 
@@ -30,45 +30,12 @@ The **only** tool that captures AI thinking chains, code diffs, command outputs,
 
 ## 🚀 Quick Start
 
-### Install
-
 ```bash
 pip install antigravity-history
 ```
 
-### Export All Conversations
-
 ```bash
-# Export as Markdown (default)
-aghistory export
-
-# Include AI thinking process
-aghistory export --thinking
-
-# Include everything (thinking + diffs + outputs)
-aghistory export --full
-```
-
-### List Conversations
-
-```bash
-aghistory list
-```
-
-### Recover Lost Conversations
-
-```bash
-# Preview what can be recovered
-aghistory recover --dry-run
-
-# Actually recover
-aghistory recover
-```
-
-### Check Status
-
-```bash
-aghistory info
+aghistory export          # ← start here!
 ```
 
 ---
@@ -77,21 +44,49 @@ aghistory info
 
 | Command | Description |
 |---------|-------------|
-| `aghistory export` | Export conversations to Markdown or Obsidian format |
+| `aghistory export` | Export conversations to Markdown / JSON / Obsidian |
 | `aghistory list` | List all indexed conversations |
 | `aghistory recover` | Recover conversations lost after crashes/updates |
 | `aghistory info` | Show LanguageServer connection status |
 
-### Export Options
+### Export Detail Level (progressive — higher level includes all below)
 
-| Option | Description |
-|--------|-------------|
-| `-o, --output DIR` | Output directory (default: `./antigravity_export`) |
-| `-f, --format FMT` | Output format: `md` / `json` / `obsidian` / `all` |
-| `--thinking` | Include AI's hidden reasoning process |
-| `--full` | Include all extended fields (thinking + diffs + outputs) |
-| `--today` | Export only today's conversations |
-| `--id ID` | Export specific conversation by cascade ID |
+```bash
+aghistory export                     # Basic: user messages + AI responses + tool summaries
+aghistory export --thinking          # ↑ + AI thinking chains, timestamps, exit codes, cwd
+aghistory export --full              # ↑ + full code diffs, command outputs, search results, model name
+```
+
+### Export Scope (filters, independent of each other)
+
+```bash
+aghistory export                     # All conversations
+aghistory export --today             # Only today's conversations
+aghistory export --id abc123         # Specific conversation by cascade ID (repeatable)
+```
+
+### Output Format & Path
+
+```bash
+aghistory export                     # Default: all formats (md + json + obsidian)
+aghistory export -f md               # Markdown only
+aghistory export -f json             # JSON only
+aghistory export -f obsidian         # Obsidian vault format (with frontmatter & wiki-links)
+aghistory export -o ./my_folder      # Custom output directory
+```
+
+### Common Combinations
+
+```bash
+# Export today's conversations with AI thinking, as Markdown
+aghistory export --today --thinking -f md
+
+# Export a specific conversation with full detail, as JSON
+aghistory export --id abc123 --full -f json
+
+# Export everything to a custom folder for Obsidian
+aghistory export -f obsidian -o ./my_vault
+```
 
 ---
 
@@ -108,9 +103,9 @@ aghistory info
 
 | Platform | Status | Discovery Method |
 |----------|--------|-----------------|
-| **Windows** | ✅ Supported | WMI + netstat |
-| **macOS** | 🔜 Coming soon | pgrep + lsof |
-| **Linux** | 🔜 Coming soon | — |
+| **Windows** | ✅ Supported | CIM/WMI + netstat |
+| **macOS** | ⚠️ Untested (code exists) | pgrep + lsof |
+| **Linux** | 🔜 Planned | TBD |
 
 ---
 
@@ -169,9 +164,6 @@ Not yet. Currently Antigravity-only. Multi-IDE support is on the roadmap.
 git clone https://github.com/neo1027144-creator/antigravity-history
 cd antigravity-history
 pip install -e ".[dev]"
-
-# Run tests
-pytest
 
 # Lint
 ruff check src/

@@ -47,7 +47,7 @@ from antigravity_history.formatters import (
 
 app = typer.Typer(
     name="aghistory",
-    help="Export, recover, and analyze your Antigravity conversations.",
+    help="Export and recover your Antigravity conversations.",
     add_completion=False,
     no_args_is_help=True,
 )
@@ -452,5 +452,5 @@ def main(
         help="Show version",
     ),
 ):
-    """Export, recover, and analyze your Antigravity conversations."""
+    """Export and recover your Antigravity conversations."""
     pass

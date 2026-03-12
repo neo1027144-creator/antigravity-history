@@ -7,9 +7,9 @@
 [![License](https://img.shields.io/github/license/neo1027144-creator/antigravity-history)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
 
-> **导出、恢复、分析你的 Antigravity AI 对话 — 完整还原每一条消息。**
+> **导出和恢复你的 Antigravity AI 对话 — 完整还原每一条消息。**
 
-唯一能完整导出 AI 思考链、代码 diff、命令输出和精确时间戳的工具。还能恢复崩溃或更新后丢失的对话。
+完整导出 AI 思考链、代码 diff、命令输出和精确时间戳。还能恢复崩溃或更新后丢失的对话。
 
 ---
 
@@ -30,45 +30,12 @@
 
 ## 🚀 快速开始
 
-### 安装
-
 ```bash
 pip install antigravity-history
 ```
 
-### 导出对话
-
 ```bash
-# 导出为 Markdown（默认）
-aghistory export
-
-# 包含 AI 思考过程
-aghistory export --thinking
-
-# 包含所有扩展字段（思考 + diff + 输出）
-aghistory export --full
-```
-
-### 列出对话
-
-```bash
-aghistory list
-```
-
-### 恢复丢失的对话
-
-```bash
-# 预览可恢复的对话
-aghistory recover --dry-run
-
-# 执行恢复
-aghistory recover
-```
-
-### 查看状态
-
-```bash
-aghistory info
+aghistory export          # ← 从这里开始！
 ```
 
 ---
@@ -82,16 +49,44 @@ aghistory info
 | `aghistory recover` | 恢复崩溃/更新后丢失的对话 |
 | `aghistory info` | 显示 LanguageServer 连接状态 |
 
-### 导出选项
+### 导出详细程度（递进关系 — 高级别包含低级别全部内容）
 
-| 选项 | 说明 |
-|------|------|
-| `-o, --output 目录` | 输出目录（默认：`./antigravity_export`） |
-| `-f, --format 格式` | 输出格式：`md` / `json` / `obsidian` / `all` |
-| `--thinking` | 包含 AI 推理过程 |
-| `--full` | 包含所有扩展字段 |
-| `--today` | 仅导出今天的对话 |
-| `--id ID` | 按 cascade ID 导出指定对话 |
+```bash
+aghistory export                     # 基础：用户消息 + AI 回复 + 工具摘要
+aghistory export --thinking          # ↑ + 思维链、时间戳、退出码、工作目录
+aghistory export --full              # ↑ + diff 全文、命令输出、搜索结果、模型名
+```
+
+### 导出范围（筛选条件，互相独立）
+
+```bash
+aghistory export                     # 全部对话
+aghistory export --today             # 只导出今天的
+aghistory export --id abc123         # 按 cascade ID 导出指定对话（可重复使用）
+```
+
+### 输出格式与路径
+
+```bash
+aghistory export                     # 默认：所有格式（md + json + obsidian）
+aghistory export -f md               # 仅 Markdown
+aghistory export -f json             # 仅 JSON
+aghistory export -f obsidian         # Obsidian 格式（含 frontmatter 和 [[双向链接]]）
+aghistory export -o ./my_folder      # 指定输出目录
+```
+
+### 常见组合用法
+
+```bash
+# 导出今天的对话，含 AI 思维链，输出为 Markdown
+aghistory export --today --thinking -f md
+
+# 导出指定对话，包含全部细节，输出为 JSON
+aghistory export --id abc123 --full -f json
+
+# 导出全部对话到自定义目录，用于 Obsidian
+aghistory export -f obsidian -o ./my_vault
+```
 
 ---
 
