@@ -261,45 +261,50 @@ def _write_export_report(
     """Write export_report.txt summarizing the export results."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     total = len(exported) + len(failed)
+    sep = "=" * 60
     lines = [
-        "# Export Report",
+        sep,
+        "  EXPORT REPORT",
+        sep,
         "",
-        f"- **Time**: {now}",
-        f"- **Total**: {total}",
-        f"- **Exported**: {len(exported)}",
-        f"- **Failed**: {len(failed)}",
+        f"  Time:      {now}",
+        f"  Total:     {total}",
+        f"  Exported:  {len(exported)}",
+        f"  Failed:    {len(failed)}",
         "",
     ]
 
     if failed_endpoints:
-        lines.append("## ⚠️ LS Endpoint Failures")
+        lines.append("-" * 60)
+        lines.append("  LS ENDPOINT FAILURES")
+        lines.append("-" * 60)
+        lines.append("  These instances failed to return conversation lists.")
+        lines.append("  Affected conversations were recovered via .pb scanning")
+        lines.append("  but may have missing titles.")
         lines.append("")
-        lines.append("These LanguageServer instances failed to return conversation lists.")
-        lines.append("Affected conversations were recovered via .pb scanning but may have missing titles.")
-        lines.append("")
-        lines.append("| # | Port | Error |")
-        lines.append("|---|------|-------|")
         for i, (port, err) in enumerate(failed_endpoints, 1):
-            lines.append(f"| {i} | {port} | {err} |")
+            lines.append(f"  {i}. Port {port} - {err}")
         lines.append("")
 
     if failed:
-        lines.append("## ❌ Failed Conversations")
-        lines.append("")
-        lines.append("| # | Cascade ID | Error |")
-        lines.append("|---|-----------|-------|")
+        lines.append("-" * 60)
+        lines.append("  FAILED CONVERSATIONS")
+        lines.append("-" * 60)
         for i, (cid, err) in enumerate(failed, 1):
-            lines.append(f"| {i} | `{cid}` | {err} |")
+            lines.append(f"  {i}. {cid}")
+            lines.append(f"     Error: {err}")
         lines.append("")
 
     if exported:
-        lines.append("## ✅ Exported Conversations")
-        lines.append("")
-        lines.append("| # | Title | Messages | Cascade ID |")
-        lines.append("|---|-------|----------|-----------|")
+        lines.append("-" * 60)
+        lines.append(f"  EXPORTED CONVERSATIONS ({len(exported)})")
+        lines.append("-" * 60)
         for i, (cid, title, msg_count) in enumerate(exported, 1):
-            lines.append(f"| {i} | {title[:50]} | {msg_count} | `{cid[:8]}...` |")
+            lines.append(f"  {i:3d}. {title[:50]}")
+            lines.append(f"       Messages: {msg_count}  |  ID: {cid[:8]}...")
         lines.append("")
+
+    lines.append(sep)
 
     report_path = output_dir / "export_report.txt"
     with open(report_path, "w", encoding="utf-8") as f:
