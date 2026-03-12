@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "antigravity-history"
-version = "0.2.4"
+version = "0.2.5"
 description = "Export and recover your Google Antigravity conversations."
 readme = "README.md"
 license = {text = "Apache-2.0"}
