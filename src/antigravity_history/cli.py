@@ -123,9 +123,11 @@ def export(
 
     # Fetch conversation list from all LS instances (merge & deduplicate)
     console.print("[dim]Fetching conversation list (scanning all workspaces)...[/dim]")
-    summaries, cascade_ep = get_all_trajectories_merged(endpoints)
+    summaries, cascade_ep, failed_eps = get_all_trajectories_merged(endpoints)
     indexed_count = len(summaries)
     console.print(f"[dim]  Indexed conversations: {indexed_count}[/dim]")
+    if failed_eps:
+        console.print(f"[dim]  [yellow]LS endpoints failed: {len(failed_eps)}[/yellow][/dim]")
 
     default_ep = endpoints[0]
 
@@ -235,7 +237,7 @@ def export(
             f.write(format_json(all_records))
 
     # Write export report
-    _write_export_report(output_dir, exported_list, failed_list)
+    _write_export_report(output_dir, exported_list, failed_list, failed_eps)
 
     # Summary
     total_msgs = sum(len(r["messages"]) for r in all_records) if all_records else 0
@@ -254,6 +256,7 @@ def _write_export_report(
     output_dir: Path,
     exported: list[tuple],
     failed: list[tuple],
+    failed_endpoints: list[tuple] = None,
 ):
     """Write export_report.md summarizing the export results."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -267,6 +270,18 @@ def _write_export_report(
         f"- **Failed**: {len(failed)}",
         "",
     ]
+
+    if failed_endpoints:
+        lines.append("## ⚠️ LS Endpoint Failures")
+        lines.append("")
+        lines.append("These LanguageServer instances failed to return conversation lists.")
+        lines.append("Affected conversations were recovered via .pb scanning but may have missing titles.")
+        lines.append("")
+        lines.append("| # | Port | Error |")
+        lines.append("|---|------|-------|")
+        for i, (port, err) in enumerate(failed_endpoints, 1):
+            lines.append(f"| {i} | {port} | {err} |")
+        lines.append("")
 
     if failed:
         lines.append("## ❌ Failed Conversations")
