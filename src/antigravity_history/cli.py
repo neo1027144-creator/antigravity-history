@@ -248,7 +248,7 @@ def export(
         console.print(f"  [red]Failed: {len(failed_list)}[/red]")
     if total_msgs:
         console.print(f"  Messages: {total_msgs}")
-    console.print(f"  Report: {output_dir.absolute() / 'export_report.md'}")
+    console.print(f"  Report: {output_dir.absolute() / 'export_report.txt'}")
     console.print(f"  Output directory: {output_dir.absolute()}")
 
 
@@ -258,7 +258,7 @@ def _write_export_report(
     failed: list[tuple],
     failed_endpoints: list[tuple] = None,
 ):
-    """Write export_report.md summarizing the export results."""
+    """Write export_report.txt summarizing the export results."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     total = len(exported) + len(failed)
     lines = [
@@ -301,7 +301,7 @@ def _write_export_report(
             lines.append(f"| {i} | {title[:50]} | {msg_count} | `{cid[:8]}...` |")
         lines.append("")
 
-    report_path = output_dir / "export_report.md"
+    report_path = output_dir / "export_report.txt"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
