@@ -329,7 +329,7 @@ def list_conversations(
     out.print(f"\n[bold]Antigravity Conversations[/bold]\n")
 
     endpoints = _discover_endpoints(port, token, log=out)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, cascade_ep, failed_eps = get_all_trajectories_merged(endpoints)
 
     if today:
         today_str = date.today().isoformat()
@@ -406,7 +406,7 @@ def recover(
     p, c = default_ep["port"], default_ep["csrf"]
 
     # Indexed conversations (merged from all LS instances)
-    indexed, _ = get_all_trajectories_merged(endpoints)
+    indexed, cascade_ep, failed_eps = get_all_trajectories_merged(endpoints)
     indexed_ids = set(indexed.keys())
     console.print(f"[dim]Indexed conversations: {len(indexed_ids)}[/dim]")
 
@@ -467,7 +467,7 @@ def info(
     console.print(f"\n[bold]Antigravity History[/bold] v{__version__}\n")
 
     endpoints = _discover_endpoints(port, token)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, cascade_ep, failed_eps = get_all_trajectories_merged(endpoints)
 
     console.print(f"  LanguageServer endpoints: {len(endpoints)}")
     console.print(f"  Total conversations: {len(summaries)}")
