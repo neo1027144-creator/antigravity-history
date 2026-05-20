@@ -420,7 +420,7 @@ def recover(
     p, c = default_ep["port"], default_ep["csrf"]
 
     # Indexed conversations (merged from all LS instances)
-    indexed, _ = get_all_trajectories_merged(endpoints)
+    indexed, _, *rest = get_all_trajectories_merged(endpoints)
     indexed_ids = set(indexed.keys())
     console.print(f"[dim]Indexed conversations: {len(indexed_ids)}[/dim]")
 
