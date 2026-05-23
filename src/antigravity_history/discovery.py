@@ -3,7 +3,7 @@ Process discovery module — auto-detect running Antigravity LanguageServer inst
 
 Known issues addressed:
 - CSRF Token changes on every restart → extracted from process cmdline args in real-time
-- Port is dynamically assigned → scanned via netstat (Win) / lsof (Mac)
+- Port is dynamically assigned → scanned via netstat (Win) / lsof (Mac) / netstat or ss (Linux)
 - Multiple workspaces = multiple language_server instances → scan all, test each
 - macOS: Electron binds Unix Domain Sockets (not TCP) → lsof -i finds nothing → hang
   Fix: all subprocess calls have explicit timeout; Unix socket paths surfaced for future use
@@ -31,9 +31,42 @@ def discover_language_servers() -> list[dict]:
         return _discover_windows()
     elif system == "Darwin":
         return _discover_macos()
+    elif system == "Linux":
+        return _discover_linux()
     else:
         console.print(f"[red]Unsupported platform: {system}[/red]")
         return []
+
+
+def _discover_linux() -> list[dict]:
+    """Linux: query via pgrep + /proc/cmdline."""
+    servers = []
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "language_server"],
+            capture_output=True, text=True, timeout=5
+        )
+        for pid_str in result.stdout.strip().split('\n'):
+            if not pid_str.strip():
+                continue
+            pid = int(pid_str.strip())
+            try:
+                cmdline_path = f"/proc/{pid}/cmdline"
+                with open(cmdline_path, "r") as f:
+                    cmd = f.read().replace('\x00', ' ')
+            except (FileNotFoundError, PermissionError):
+                continue
+            if "language_server" not in cmd:
+                continue
+            csrf = ""
+            if m := re.search(r'--csrf_token\s+(\S+)', cmd):
+                csrf = m.group(1)
+            servers.append({"pid": pid, "csrf": csrf, "cmd": cmd})
+    except subprocess.TimeoutExpired:
+        console.print("[yellow]Process discovery timed out.[/yellow]")
+    except Exception as e:
+        console.print(f"[yellow]Linux discovery failed: {e}[/yellow]")
+    return servers
 
 
 def _discover_windows() -> list[dict]:
@@ -100,8 +133,37 @@ def find_ports(pid: int) -> list[int]:
     """Find ports the given process is listening on."""
     if platform.system() == "Windows":
         return _find_ports_windows(pid)
+    elif platform.system() == "Linux":
+        return _find_ports_linux(pid)
     else:
         return _find_ports_macos(pid)
+
+
+def _find_ports_linux(pid: int) -> list[int]:
+    """Linux: scan via netstat or ss."""
+    ports = []
+    # Try ss first (modern), fallback to netstat
+    for cmd_name, cmd_args in [
+        ("ss", ["ss", "-tlnp"]),
+        ("netstat", ["netstat", "-tlnp"]),
+    ]:
+        try:
+            result = subprocess.run(
+                cmd_args, capture_output=True, text=True, timeout=10
+            )
+            for line in result.stdout.split('\n'):
+                if str(pid) in line and "LISTEN" in line:
+                    if m := re.search(r'(?:127\.0\.0\.1|\[::\]|0\.0\.0\.0|\*):(\d+)', line):
+                        port = int(m.group(1))
+                        if port not in ports:
+                            ports.append(port)
+            if ports:
+                return ports
+        except FileNotFoundError:
+            continue
+        except Exception:
+            pass
+    return ports
 
 
 def _find_ports_windows(pid: int) -> list[int]:
