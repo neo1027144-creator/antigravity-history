@@ -163,15 +163,21 @@ def export(
             console.print(f"[dim]  Unindexed .pb files: {unindexed_count}[/dim]")
         console.print(f"[dim]  Total to export: {len(summaries)}[/dim]")
 
-    # Specified IDs (support on-demand loading)
+    # Specified IDs (support on-demand loading and filtering)
     if ids:
+        filtered_summaries = {}
         for cid in ids:
-            if cid not in summaries:
-                summaries[cid] = {
+            matched_keys = [k for k in summaries.keys() if k.startswith(cid)]
+            if matched_keys:
+                for k in matched_keys:
+                    filtered_summaries[k] = summaries[k]
+            else:
+                filtered_summaries[cid] = {
                     "summary": f"[on-demand] {cid[:8]}...",
                     "stepCount": 1000,
                 }
                 cascade_ep[cid] = {"port": default_ep["port"], "csrf": default_ep["csrf"]}
+        summaries = filtered_summaries
 
     # Filter today's conversations
     if today:
@@ -343,7 +349,7 @@ def list_conversations(
     out.print(f"\n[bold]Antigravity Conversations[/bold]\n")
 
     endpoints = _discover_endpoints(port, token, log=out)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, _, _ = get_all_trajectories_merged(endpoints)
 
     if today:
         today_str = date.today().isoformat()
@@ -376,7 +382,7 @@ def list_conversations(
         table.add_column("Last Modified", width=20)
         table.add_column("Steps", justify="right", width=6)
         table.add_column("Title", max_width=50)
-        table.add_column("ID", style="dim", width=10)
+        table.add_column("ID", style="dim", width=12)
 
         for i, (cid, info) in enumerate(sorted_items):
             t = info.get("lastModifiedTime", "?")[:19]
@@ -420,7 +426,7 @@ def recover(
     p, c = default_ep["port"], default_ep["csrf"]
 
     # Indexed conversations (merged from all LS instances)
-    indexed, _ = get_all_trajectories_merged(endpoints)
+    indexed, _, *rest = get_all_trajectories_merged(endpoints)
     indexed_ids = set(indexed.keys())
     console.print(f"[dim]Indexed conversations: {len(indexed_ids)}[/dim]")
 
@@ -481,7 +487,7 @@ def info(
     console.print(f"\n[bold]Antigravity History[/bold] v{__version__}\n")
 
     endpoints = _discover_endpoints(port, token)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, _, _ = get_all_trajectories_merged(endpoints)
 
     console.print(f"  LanguageServer endpoints: {len(endpoints)}")
     console.print(f"  Total conversations: {len(summaries)}")
