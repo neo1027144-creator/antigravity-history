@@ -43,9 +43,7 @@ def call_api(
         "X-Codeium-Csrf-Token": csrf_token,
     }
     try:
-        resp = requests.post(
-            url, headers=headers, json=params or {}, verify=False, timeout=timeout
-        )
+        resp = requests.post(url, headers=headers, json=params or {}, verify=False, timeout=timeout)
         if resp.status_code == 200:
             return resp.json()
     except requests.exceptions.ConnectionError:
@@ -65,7 +63,9 @@ def get_all_trajectories(port: int, csrf: str) -> dict[str, Any]:
     return result.get("trajectorySummaries", {})
 
 
-def get_all_trajectories_merged(endpoints: list[dict]) -> tuple[dict[str, Any], dict[str, dict], list[tuple]]:
+def get_all_trajectories_merged(
+    endpoints: list[dict],
+) -> tuple[dict[str, Any], dict[str, dict], list[tuple]]:
     """Query all LS instances and merge/deduplicate conversation summaries.
 
     Args:
@@ -78,6 +78,7 @@ def get_all_trajectories_merged(endpoints: list[dict]) -> tuple[dict[str, Any], 
         - failed_endpoints: [(port, error_str)] for endpoints that timed out or failed
     """
     import concurrent.futures
+
     merged = {}
     cascade_ep = {}
     failed_eps = []
@@ -85,7 +86,9 @@ def get_all_trajectories_merged(endpoints: list[dict]) -> tuple[dict[str, Any], 
     def fetch(ep):
         return ep, get_all_trajectories(ep["port"], ep["csrf"])
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, max(1, len(endpoints)))) as executor:
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(10, max(1, len(endpoints)))
+    ) as executor:
         futures = {executor.submit(fetch, ep): ep for ep in endpoints}
         for future in concurrent.futures.as_completed(futures):
             ep = futures[future]
@@ -119,7 +122,9 @@ def get_trajectory_steps(
         List of steps
     """
     result = call_api(
-        port, csrf, "GetCascadeTrajectorySteps",
+        port,
+        csrf,
+        "GetCascadeTrajectorySteps",
         {"cascadeId": cascade_id, "startIndex": 0, "endIndex": step_count + 10},
         timeout=30,
     )

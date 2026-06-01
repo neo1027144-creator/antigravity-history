@@ -9,11 +9,12 @@ Three-level field strategy:
 Supports 14 step types (10 content types + 4 system types skipped)
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 
 class FieldLevel:
     """Field export level."""
+
     DEFAULT = "default"
     THINKING = "thinking"
     FULL = "full"
@@ -57,7 +58,7 @@ def _parse_step(
     step_type: str,
     include_thinking: bool,
     include_full: bool,
-) -> Optional[dict]:
+) -> Optional[dict[str, Any]]:
     """Parse a single step, return a message dict or None (skip system types)."""
 
     # ── User input ──
@@ -136,7 +137,8 @@ def _normalize_diff(diff) -> str:
         return "\n".join(parts)
     return str(diff)
 
-def _parse_user_input(step: dict, include_full: bool) -> Optional[dict]:
+
+def _parse_user_input(step: dict, include_full: bool) -> Optional[dict[str, Any]]:
     ui = step.get("userInput", {})
     content = ui.get("userResponse", "")
     if not content:
@@ -157,7 +159,7 @@ def _parse_user_input(step: dict, include_full: bool) -> Optional[dict]:
 
 def _parse_planner_response(
     step: dict, include_thinking: bool, include_full: bool
-) -> Optional[dict]:
+) -> Optional[dict[str, Any]]:
     pr = step.get("plannerResponse", {})
     # Prefer modifiedResponse (post-processed), fall back to response
     content = pr.get("modifiedResponse") or pr.get("response", "")
@@ -191,7 +193,7 @@ def _parse_planner_response(
     return msg
 
 
-def _parse_code_action(step: dict, include_full: bool) -> Optional[dict]:
+def _parse_code_action(step: dict, include_full: bool) -> Optional[dict[str, Any]]:
     ca = step.get("codeAction", {})
     description = ca.get("description", "")
 
@@ -208,7 +210,7 @@ def _parse_code_action(step: dict, include_full: bool) -> Optional[dict]:
     if description:
         summary += f"\n{description}"
 
-    msg = {"role": "tool", "tool_name": "code_edit", "content": summary}
+    msg: dict[str, Any] = {"role": "tool", "tool_name": "code_edit", "content": summary}
 
     if file_path:
         msg["file_path"] = file_path
@@ -233,7 +235,7 @@ def _parse_code_action(step: dict, include_full: bool) -> Optional[dict]:
 
 def _parse_run_command(
     step: dict, include_thinking: bool, include_full: bool
-) -> Optional[dict]:
+) -> Optional[dict[str, Any]]:
     rc = step.get("runCommand", {})
     command = rc.get("commandLine", rc.get("command", ""))
     if not command:
@@ -259,7 +261,7 @@ def _parse_run_command(
     return msg
 
 
-def _parse_view_file(step: dict, include_thinking: bool) -> Optional[dict]:
+def _parse_view_file(step: dict, include_thinking: bool) -> Optional[dict[str, Any]]:
     vf = step.get("viewFile", {})
     path = vf.get("absolutePathUri", vf.get("filePath", vf.get("path", "")))
     if not path:
@@ -280,7 +282,7 @@ def _parse_view_file(step: dict, include_thinking: bool) -> Optional[dict]:
     return msg
 
 
-def _parse_search_web(step: dict, include_full: bool) -> Optional[dict]:
+def _parse_search_web(step: dict, include_full: bool) -> Optional[dict[str, Any]]:
     sw = step.get("searchWeb", {})
     query = sw.get("query", "")
 

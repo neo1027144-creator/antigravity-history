@@ -9,13 +9,12 @@ import json
 import os
 import re
 from datetime import datetime
-from pathlib import Path
-from typing import Any
 
 
 # ════════════════════════════════
 # Markdown format
 # ════════════════════════════════
+
 
 def format_markdown(
     title: str,
@@ -25,7 +24,8 @@ def format_markdown(
 ) -> str:
     """Format a conversation as a Markdown string."""
     lines = [
-        f"# {title}", "",
+        f"# {title}",
+        "",
         f"- **Cascade ID**: `{cascade_id}`",
         f"- **Steps**: {metadata.get('stepCount', '?')}",
         f"- **Status**: {metadata.get('status', '?')}",
@@ -40,14 +40,15 @@ def format_markdown(
         # fallback: try trajectoryMetadata.workspaces
         workspaces = metadata.get("trajectoryMetadata", {}).get("workspaces", [])
     if workspaces:
-        ws_uris = [w.get("workspaceFolderAbsoluteUri", "") for w in workspaces if w.get("workspaceFolderAbsoluteUri")]
+        ws_uris = [
+            w.get("workspaceFolderAbsoluteUri", "")
+            for w in workspaces
+            if w.get("workspaceFolderAbsoluteUri")
+        ]
         if ws_uris:
             lines.append(f"- **Workspace**: {', '.join(ws_uris)}")
 
-    lines.extend([
-        f"- **Exported**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "", "---", ""
-    ])
+    lines.extend([f"- **Exported**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "", "---", ""])
 
     for msg in messages:
         lines.extend(_format_message_md(msg))
@@ -117,9 +118,9 @@ def _format_message_md(msg: dict) -> list[str]:
             exit_code = msg.get("exit_code")
             cwd_info = f" (in `{cwd}`)" if cwd else ""
             exit_info = f" → exit {exit_code}" if exit_code is not None else ""
-            lines.append(f"```bash")
+            lines.append("```bash")
             lines.append(content)
-            lines.append(f"```")
+            lines.append("```")
             if cwd_info or exit_info:
                 lines.append(f"*{cwd_info}{exit_info}*")
             # Command output
@@ -176,6 +177,7 @@ def _format_message_md(msg: dict) -> list[str]:
 # JSON format
 # ════════════════════════════════
 
+
 def format_json(conversations: list[dict]) -> str:
     """Format all conversations as a JSON string."""
     return json.dumps(conversations, indent=2, ensure_ascii=False)
@@ -198,23 +200,24 @@ def build_conversation_record(
     }
     workspaces = metadata.get("workspaces", [])
     if workspaces:
-        ws_uris = [w.get("workspaceFolderAbsoluteUri", "")
-                    for w in workspaces
-                    if w.get("workspaceFolderAbsoluteUri")]
+        ws_uris = [
+            w.get("workspaceFolderAbsoluteUri", "")
+            for w in workspaces
+            if w.get("workspaceFolderAbsoluteUri")
+        ]
         if ws_uris:
             record["workspaces"] = ws_uris
     return record
-
-
 
 
 # ════════════════════════════════
 # File writing utilities
 # ════════════════════════════════
 
+
 def safe_filename(title: str, max_len: int = 60) -> str:
     """Convert a title to a safe filename."""
-    return re.sub(r'[^\w\s\-]', '_', title)[:max_len].strip()
+    return re.sub(r"[^\w\s\-]", "_", title)[:max_len].strip()
 
 
 def write_conversation(

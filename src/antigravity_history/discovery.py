@@ -38,13 +38,18 @@ def discover_language_servers() -> list[dict]:
 
 def _discover_windows() -> list[dict]:
     """Windows: query language_server processes via WMI."""
-    servers = []
+    servers: list[dict] = []
     try:
         result = subprocess.run(
-            ["powershell", "-Command",
-             "Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'language_server*' } | "
-             "Select-Object ProcessId, CommandLine | ConvertTo-Json"],
-            capture_output=True, text=True, timeout=15
+            [
+                "powershell",
+                "-Command",
+                "Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'language_server*' } | "
+                "Select-Object ProcessId, CommandLine | ConvertTo-Json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return servers
@@ -59,7 +64,7 @@ def _discover_windows() -> list[dict]:
             if not cmd:
                 continue
             csrf = ""
-            if m := re.search(r'--csrf_token\s+(\S+)', cmd):
+            if m := re.search(r"--csrf_token\s+(\S+)", cmd):
                 csrf = m.group(1)
             servers.append({"pid": pid, "csrf": csrf, "cmd": cmd})
     except Exception as e:
@@ -72,21 +77,19 @@ def _discover_macos() -> list[dict]:
     servers = []
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "language_server"],
-            capture_output=True, text=True, timeout=5
+            ["pgrep", "-f", "language_server"], capture_output=True, text=True, timeout=5
         )
-        for pid in result.stdout.strip().split('\n'):
+        for pid in result.stdout.strip().split("\n"):
             if not pid.strip():
                 continue
             ps_result = subprocess.run(
-                ["ps", "-p", pid, "-o", "args="],
-                capture_output=True, text=True, timeout=5
+                ["ps", "-p", pid, "-o", "args="], capture_output=True, text=True, timeout=5
             )
             cmd = ps_result.stdout.strip()
             if not cmd or "language_server" not in cmd:
                 continue
             csrf = ""
-            if m := re.search(r'--csrf_token\s+(\S+)', cmd):
+            if m := re.search(r"--csrf_token\s+(\S+)", cmd):
                 csrf = m.group(1)
             servers.append({"pid": int(pid), "csrf": csrf, "cmd": cmd})
     except subprocess.TimeoutExpired:
@@ -108,12 +111,10 @@ def _find_ports_windows(pid: int) -> list[int]:
     """Windows: scan via netstat."""
     ports = []
     try:
-        result = subprocess.run(
-            ["netstat", "-ano"], capture_output=True, text=True, timeout=10
-        )
-        for line in result.stdout.split('\n'):
+        result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=10)
+        for line in result.stdout.split("\n"):
             if "LISTENING" in line and str(pid) in line:
-                if m := re.search(r'127\.0\.0\.1:(\d+)', line):
+                if m := re.search(r"127\.0\.0\.1:(\d+)", line):
                     ports.append(int(m.group(1)))
     except Exception:
         pass
@@ -130,12 +131,11 @@ def _find_ports_macos(pid: int) -> list[int]:
     ports = []
     try:
         result = subprocess.run(
-            ["lsof", "-p", str(pid), "-i", "-P", "-n"],
-            capture_output=True, text=True, timeout=10
+            ["lsof", "-p", str(pid), "-i", "-P", "-n"], capture_output=True, text=True, timeout=10
         )
-        for line in result.stdout.split('\n'):
+        for line in result.stdout.split("\n"):
             if "LISTEN" in line:
-                if m := re.search(r':(\d+)\s+\(LISTEN\)', line):
+                if m := re.search(r":(\d+)\s+\(LISTEN\)", line):
                     ports.append(int(m.group(1)))
     except subprocess.TimeoutExpired:
         console.print(f"[yellow]lsof timed out for pid {pid}[/yellow]")
@@ -153,10 +153,9 @@ def _find_unix_sockets_macos(pid: int) -> list[str]:
     sockets = []
     try:
         result = subprocess.run(
-            ["lsof", "-p", str(pid), "-U"],
-            capture_output=True, text=True, timeout=10
+            ["lsof", "-p", str(pid), "-U"], capture_output=True, text=True, timeout=10
         )
-        for line in result.stdout.split('\n'):
+        for line in result.stdout.split("\n"):
             parts = line.split()
             if len(parts) >= 9:
                 path = parts[-1]
