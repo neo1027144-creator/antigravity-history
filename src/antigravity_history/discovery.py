@@ -188,7 +188,10 @@ def find_all_endpoints(
     endpoints = []
     seen_ports = set()
 
+    import platform
+
     for srv in servers:
+        # Check TCP ports
         ports = find_ports(srv["pid"])
         for port in ports:
             if port in seen_ports:
@@ -197,7 +200,19 @@ def find_all_endpoints(
             if result is not None:
                 endpoints.append({"port": port, "csrf": srv["csrf"], "pid": srv["pid"]})
                 seen_ports.add(port)
-                break  # Only need one port per process
+                break  # Only need one working endpoint per process
+
+        # Check Unix Sockets (macOS fallback)
+        if platform.system() == "Darwin":
+            sockets = _find_unix_sockets_macos(srv["pid"])
+            for sock in sockets:
+                if sock in seen_ports:
+                    continue
+                result = call_api(sock, srv["csrf"], "GetAllCascadeTrajectories", timeout=5)
+                if result is not None:
+                    endpoints.append({"port": sock, "csrf": srv["csrf"], "pid": srv["pid"]})
+                    seen_ports.add(sock)
+                    break
 
     return endpoints
 
