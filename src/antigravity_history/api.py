@@ -7,7 +7,8 @@ Known issues addressed:
 - API only available at runtime → all calls have timeout + friendly error messages
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
+import urllib.parse
 
 import requests
 import urllib3
@@ -18,7 +19,7 @@ BASE_PATH = "exa.language_server_pb.LanguageServerService"
 
 
 def call_api(
-    port: int,
+    port: Union[int, str],
     csrf_token: str,
     method: str,
     params: Optional[dict] = None,
@@ -27,7 +28,7 @@ def call_api(
     """Call LanguageServer gRPC-Web API.
 
     Args:
-        port: Local port
+        port: Local port (int) or Unix Socket path (str)
         csrf_token: CSRF token extracted from process args
         method: API method name (e.g. "GetAllCascadeTrajectories")
         params: Request body
@@ -36,16 +37,23 @@ def call_api(
     Returns:
         Response JSON dict, or None on failure
     """
-    url = f"https://localhost:{port}/{BASE_PATH}/{method}"
     headers = {
         "Content-Type": "application/json",
         "Connect-Protocol-Version": "1",
         "X-Codeium-Csrf-Token": csrf_token,
     }
     try:
-        resp = requests.post(
-            url, headers=headers, json=params or {}, verify=False, timeout=timeout
-        )
+        if isinstance(port, str):
+            import requests_unixsocket
+            session = requests_unixsocket.Session()
+            url = f"http+unix://{urllib.parse.quote(port, safe='')}/{BASE_PATH}/{method}"
+            resp = session.post(url, headers=headers, json=params or {}, timeout=timeout)
+        else:
+            url = f"https://localhost:{port}/{BASE_PATH}/{method}"
+            resp = requests.post(
+                url, headers=headers, json=params or {}, verify=False, timeout=timeout
+            )
+            
         if resp.status_code == 200:
             return resp.json()
     except requests.exceptions.ConnectionError:
