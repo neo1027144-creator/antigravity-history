@@ -19,6 +19,7 @@ from typing import Optional
 try:
     import typer
     from rich.console import Console
+    from rich.markup import escape
     from rich.table import Table
     from rich.progress import track
 except ImportError:
@@ -32,9 +33,12 @@ from antigravity_history.discovery import (
     find_working_endpoint,
 )
 from antigravity_history.api import (
+    default_conv_dir,
     get_all_trajectories,
     get_all_trajectories_merged,
+    get_local_summaries,
     get_trajectory_steps,
+    scan_disk_conversation_ids,
 )
 from antigravity_history.parser import parse_steps, FieldLevel
 from antigravity_history.formatters import (
@@ -100,6 +104,41 @@ def _discover_endpoints(
     return endpoints
 
 
+def _merge_disk_conversations(
+    summaries: dict,
+    cascade_ep: dict,
+    default_ep: dict,
+    log: Optional[Console] = None,
+) -> set[str]:
+    """Merge on-disk conversations into API summaries.
+
+    The LS API only indexes conversations loaded in memory (usually the
+    active workspaces), while the local summaries database plus the per-
+    conversation data files (.db, legacy .pb) hold the full history.
+    Entries missing from the API are added with the default endpoint so
+    they load on demand through the API.
+
+    Returns:
+        Set of cascade IDs that came from disk only (not API-indexed).
+    """
+    log = log or console
+    local = get_local_summaries()
+    disk_ids = scan_disk_conversation_ids()
+    disk_only: set[str] = set()
+    for cid in disk_ids | set(local.keys()):
+        if cid not in summaries:
+            info = local.get(cid)
+            summaries[cid] = dict(info) if info else {
+                "summary": f"[unindexed] {cid[:8]}...",
+                "stepCount": 1000,
+            }
+            cascade_ep[cid] = {"port": default_ep["port"], "csrf": default_ep["csrf"]}
+            disk_only.add(cid)
+    if disk_only:
+        log.print(f"[dim]  Unindexed on-disk conversations: {len(disk_only)}[/dim]")
+    return disk_only
+
+
 # ════════════════════════════════
 # export subcommand
 # ════════════════════════════════
@@ -145,33 +184,22 @@ def export(
 
     default_ep = endpoints[0]
 
-    # Scan .pb files to find unindexed conversations
-    conv_dir = os.path.expanduser("~/.gemini/antigravity/conversations")
-    if os.path.isdir(conv_dir):
-        pb_files = [f for f in os.listdir(conv_dir) if f.endswith('.pb')]
-        unindexed_count = 0
-        for f in pb_files:
-            cid = f.replace('.pb', '')
-            if cid not in summaries:
-                summaries[cid] = {
-                    "summary": f"[unindexed] {cid[:8]}...",
-                    "stepCount": 1000,
-                }
-                cascade_ep[cid] = {"port": default_ep["port"], "csrf": default_ep["csrf"]}
-                unindexed_count += 1
-        if unindexed_count:
-            console.print(f"[dim]  Unindexed .pb files: {unindexed_count}[/dim]")
-        console.print(f"[dim]  Total to export: {len(summaries)}[/dim]")
+    # Merge on-disk conversations (.db files + local index) not tracked by the API
+    _merge_disk_conversations(summaries, cascade_ep, default_ep, log=console)
+    console.print(f"[dim]  Total to export: {len(summaries)}[/dim]")
 
-    # Specified IDs (support on-demand loading)
+    # Specified IDs (support on-demand loading, exact or prefix match)
     if ids:
         for cid in ids:
-            if cid not in summaries:
+            if cid not in summaries and not any(k.startswith(cid) for k in summaries):
                 summaries[cid] = {
                     "summary": f"[on-demand] {cid[:8]}...",
                     "stepCount": 1000,
                 }
                 cascade_ep[cid] = {"port": default_ep["port"], "csrf": default_ep["csrf"]}
+        wanted = {k for k in summaries for cid in ids if k == cid or k.startswith(cid)}
+        summaries = {k: v for k, v in summaries.items() if k in wanted}
+        console.print(f"[dim]  Filtered by --id: {len(summaries)}[/dim]")
 
     # Filter today's conversations
     if today:
@@ -343,7 +371,12 @@ def list_conversations(
     out.print(f"\n[bold]Antigravity Conversations[/bold]\n")
 
     endpoints = _discover_endpoints(port, token, log=out)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, cascade_ep, _ = get_all_trajectories_merged(endpoints)
+
+    # Merge full on-disk history (the API only indexes loaded workspaces)
+    disk_only = _merge_disk_conversations(
+        summaries, cascade_ep, endpoints[0], log=out,
+    )
 
     if today:
         today_str = date.today().isoformat()
@@ -368,6 +401,7 @@ def list_conversations(
                 "step_count": info.get("stepCount", 0),
                 "last_modified": info.get("lastModifiedTime", ""),
                 "created": info.get("createdTime", ""),
+                "source": "disk" if cid in disk_only else "api",
             })
         print(json_mod.dumps(records, indent=2, ensure_ascii=False))
     else:
@@ -375,6 +409,7 @@ def list_conversations(
         table.add_column("#", style="dim", width=4)
         table.add_column("Last Modified", width=20)
         table.add_column("Steps", justify="right", width=6)
+        table.add_column("Src", width=5)
         table.add_column("Title", max_width=50)
         table.add_column("ID", style="dim", width=10)
 
@@ -384,7 +419,8 @@ def list_conversations(
                 str(i + 1),
                 t,
                 str(info.get("stepCount", "?")),
-                info.get("summary", "?")[:50],
+                "disk" if cid in disk_only else "api",
+                escape(info.get("summary", "?")[:50]),
                 cid[:8] + "...",
             )
 
@@ -405,9 +441,9 @@ def recover(
     port: Optional[int] = typer.Option(None, "--port", help="Manually specify port"),
     token: Optional[str] = typer.Option(None, "--token", help="Manually specify CSRF token"),
 ):
-    """Recover lost conversations (scan .pb files and reload via API)."""
+    """Recover lost conversations (scan data files and reload via API)."""
     if conv_dir is None:
-        conv_dir = os.path.expanduser("~/.gemini/antigravity/conversations")
+        conv_dir = default_conv_dir()
 
     if not os.path.isdir(conv_dir):
         err_console.print(f"[red]Directory not found: {conv_dir}[/red]")
@@ -420,46 +456,50 @@ def recover(
     p, c = default_ep["port"], default_ep["csrf"]
 
     # Indexed conversations (merged from all LS instances)
-    indexed, _ = get_all_trajectories_merged(endpoints)
+    indexed, _, _ = get_all_trajectories_merged(endpoints)
     indexed_ids = set(indexed.keys())
     console.print(f"[dim]Indexed conversations: {len(indexed_ids)}[/dim]")
 
-    # Scan .pb files
-    pb_files = sorted([f for f in os.listdir(conv_dir) if f.endswith('.pb')])
-    console.print(f"[dim].pb files: {len(pb_files)}[/dim]\n")
+    # Scan data files (.db for current versions, .pb for legacy ones)
+    data_files = sorted(
+        [f for f in os.listdir(conv_dir) if f.endswith((".db", ".pb"))]
+    )
+    local = get_local_summaries()
+    console.print(f"[dim]Data files: {len(data_files)}[/dim]\n")
 
     activated = []
     failed = []
     already_indexed = []
 
-    for i, f in enumerate(track(pb_files, description="Scanning...")):
-        cascade_id = f.replace('.pb', '')
+    for i, f in enumerate(track(data_files, description="Scanning...")):
+        cascade_id = f.rsplit('.', 1)[0]
         is_indexed = cascade_id in indexed_ids
         size_kb = os.path.getsize(os.path.join(conv_dir, f)) // 1024
+        title = (local.get(cascade_id, {}).get("summary", ""))[:40]
 
         if is_indexed:
             already_indexed.append(cascade_id)
             continue
 
         if dry_run:
-            console.print(f"  [yellow]Unindexed[/yellow] {cascade_id[:8]}... ({size_kb}KB)")
+            console.print(f"  [yellow]Unindexed[/yellow] {cascade_id[:8]}... ({size_kb}KB) {title}")
             continue
 
         # Try on-demand loading via API
         result = get_trajectory_steps(p, c, cascade_id, step_count=5)
         if result:
             activated.append(cascade_id)
-            console.print(f"  [green]Activated[/green] {cascade_id[:8]}... ({size_kb}KB, {len(result)}+ steps)")
+            console.print(f"  [green]Activated[/green] {cascade_id[:8]}... ({size_kb}KB, {len(result)}+ steps) {title}")
         else:
             failed.append(cascade_id)
-            console.print(f"  [red]Failed[/red] {cascade_id[:8]}... ({size_kb}KB)")
+            console.print(f"  [red]Failed[/red] {cascade_id[:8]}... ({size_kb}KB) {title}")
 
     # Summary
     console.print(f"\n[bold]{'─' * 40}[/bold]")
-    console.print(f"  Total .pb files: {len(pb_files)}")
+    console.print(f"  Total data files: {len(data_files)}")
     console.print(f"  Indexed: {len(already_indexed)}")
     if dry_run:
-        unindexed = len(pb_files) - len(already_indexed)
+        unindexed = len(data_files) - len(already_indexed)
         console.print(f"  Unindexed: {unindexed}")
         console.print(f"\n[yellow]Dry run mode. Remove --dry-run to perform actual recovery.[/yellow]")
     else:
@@ -481,17 +521,20 @@ def info(
     console.print(f"\n[bold]Antigravity History[/bold] v{__version__}\n")
 
     endpoints = _discover_endpoints(port, token)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, cascade_ep, _ = get_all_trajectories_merged(endpoints)
+    disk_only = _merge_disk_conversations(
+        summaries, cascade_ep, endpoints[0], log=console,
+    )
 
     console.print(f"  LanguageServer endpoints: {len(endpoints)}")
-    console.print(f"  Total conversations: {len(summaries)}")
+    console.print(f"  Total conversations: {len(summaries)} (API: {len(summaries) - len(disk_only)}, disk: {len(disk_only)})")
 
     if summaries:
         sorted_items = sorted(
             summaries.items(),
             key=lambda x: x[1].get("lastModifiedTime", ""),
         )
-        oldest = sorted_items[0][1].get("createdTime", "?")[:10]
+        oldest = (sorted_items[0][1].get("createdTime", "") or sorted_items[0][1].get("lastModifiedTime", "?"))[:10]
         newest = sorted_items[-1][1].get("lastModifiedTime", "?")[:10]
         total_steps = sum(v.get("stepCount", 0) for v in summaries.values())
         console.print(f"  Total steps: {total_steps}")

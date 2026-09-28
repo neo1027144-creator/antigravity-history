@@ -1,12 +1,16 @@
 """
-LanguageServer API client.
+LanguageServer API client + local on-disk store reader.
 
 Known issues addressed:
 - Self-signed certificate → verify=False + suppress urllib3 warnings
 - Unindexed conversations loaded on demand → just call with cascadeId
 - API only available at runtime → all calls have timeout + friendly error messages
+- API index is partial (only loaded workspaces) → merge with local
+  conversation_summaries.db / *.db files which hold the full history
 """
 
+import os
+import sqlite3
 from typing import Any, Optional
 
 import requests
@@ -126,3 +130,84 @@ def get_trajectory_steps(
     if not result:
         return []
     return result.get("steps", result.get("messages", []))
+
+
+def default_conv_dir() -> str:
+    """Local conversations directory (one SQLite .db per conversation)."""
+    return os.path.expanduser("~/.gemini/antigravity/conversations")
+
+
+def default_summaries_db() -> str:
+    """Local full-history index (SQLite) covering all conversations on disk."""
+    return os.path.expanduser("~/.gemini/antigravity/conversation_summaries.db")
+
+
+def _normalize_time(value: Any) -> str:
+    """Normalize disk timestamps to API-style ISO format for sorting/filtering."""
+    if not value:
+        return ""
+    text = str(value)
+    # Disk format: "2026-09-27 18:56:39.164163+00:00"
+    # API format:  "2026-09-27T18:56:39.164163Z"
+    return text.replace(" ", "T", 1).replace("+00:00", "Z")
+
+
+def get_local_summaries(db_path: Optional[str] = None) -> dict[str, Any]:
+    """Read the full conversation index from the local summaries database.
+
+    The LanguageServer API only returns conversations loaded in memory
+    (typically the active workspaces), while this database lists every
+    conversation stored on disk.
+
+    Args:
+        db_path: Override path (defaults to ~/.gemini/antigravity/conversation_summaries.db)
+
+    Returns:
+        {cascadeId: summary_dict} with keys compatible with API summaries:
+        summary / stepCount / lastModifiedTime / createdTime / workspace.
+        Returns {} if the database is missing or unreadable.
+    """
+    path = db_path or default_summaries_db()
+    if not os.path.isfile(path):
+        return {}
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+        try:
+            rows = con.execute(
+                "SELECT conversation_id, title, preview, step_count,"
+                " last_modified_time, workspace_uris FROM conversation_summaries"
+            ).fetchall()
+        finally:
+            con.close()
+    except Exception:
+        return {}
+    summaries: dict[str, Any] = {}
+    for cid, title, preview, step_count, last_modified, workspace_uris in rows:
+        if not cid:
+            continue
+        summaries[cid] = {
+            "summary": title or preview or f"(unindexed) {cid[:8]}...",
+            "stepCount": step_count or 0,
+            "lastModifiedTime": _normalize_time(last_modified),
+            "createdTime": "",
+            "workspace": workspace_uris or "",
+        }
+    return summaries
+
+
+def scan_disk_conversation_ids(conv_dir: Optional[str] = None) -> set[str]:
+    """List conversation IDs that have a data file on disk.
+
+    Current Antigravity versions store one SQLite .db per conversation;
+    older versions used .pb — both extensions are recognized.
+    """
+    directory = conv_dir or default_conv_dir()
+    try:
+        files = os.listdir(directory)
+    except OSError:
+        return set()
+    ids = set()
+    for name in files:
+        if name.endswith((".db", ".pb")):
+            ids.add(name.rsplit(".", 1)[0])
+    return ids
