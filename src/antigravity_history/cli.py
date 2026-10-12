@@ -115,7 +115,9 @@ def export(
         help="Output format: md / json / all",
     ),
     today: bool = typer.Option(False, "--today", help="Export only today's conversations"),
-    ids: Optional[list[str]] = typer.Option(None, "--id", help="Export specific cascade ID(s)"),
+    ids: Optional[list[str]] = typer.Option(  # noqa: B008
+        None, "--id", help="Export specific cascade ID(s)"
+    ),
     thinking: bool = typer.Option(False, "--thinking", help="Include AI thinking process"),
     full: bool = typer.Option(False, "--full", help="Include all extended fields (thinking+diff+output)"),
     port: Optional[int] = typer.Option(None, "--port", help="Manually specify port"),
@@ -225,7 +227,7 @@ def export(
                 cid = futures[future]
                 try:
                     cascade_id, title, info, messages = future.result()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     err_console.print(f"[red]Skipped {cid[:8]}...: {e}[/red]")
                     failed_list.append((cid, str(e)))
                     progress.advance(task)
@@ -343,7 +345,7 @@ def list_conversations(
     out.print(f"\n[bold]Antigravity Conversations[/bold]\n")
 
     endpoints = _discover_endpoints(port, token, log=out)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, _, _ = get_all_trajectories_merged(endpoints)
 
     if today:
         today_str = date.today().isoformat()
@@ -376,7 +378,7 @@ def list_conversations(
         table.add_column("Last Modified", width=20)
         table.add_column("Steps", justify="right", width=6)
         table.add_column("Title", max_width=50)
-        table.add_column("ID", style="dim", width=10)
+        table.add_column("ID", style="dim", min_width=36, no_wrap=True)
 
         for i, (cid, info) in enumerate(sorted_items):
             t = info.get("lastModifiedTime", "?")[:19]
@@ -385,7 +387,7 @@ def list_conversations(
                 t,
                 str(info.get("stepCount", "?")),
                 info.get("summary", "?")[:50],
-                cid[:8] + "...",
+                cid,
             )
 
         console.print(table)
@@ -420,7 +422,7 @@ def recover(
     p, c = default_ep["port"], default_ep["csrf"]
 
     # Indexed conversations (merged from all LS instances)
-    indexed, _ = get_all_trajectories_merged(endpoints)
+    indexed, _, _ = get_all_trajectories_merged(endpoints)
     indexed_ids = set(indexed.keys())
     console.print(f"[dim]Indexed conversations: {len(indexed_ids)}[/dim]")
 
@@ -481,7 +483,7 @@ def info(
     console.print(f"\n[bold]Antigravity History[/bold] v{__version__}\n")
 
     endpoints = _discover_endpoints(port, token)
-    summaries, _ = get_all_trajectories_merged(endpoints)
+    summaries, _, _ = get_all_trajectories_merged(endpoints)
 
     console.print(f"  LanguageServer endpoints: {len(endpoints)}")
     console.print(f"  Total conversations: {len(summaries)}")

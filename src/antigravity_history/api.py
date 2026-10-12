@@ -7,6 +7,7 @@ Known issues addressed:
 - API only available at runtime → all calls have timeout + friendly error messages
 """
 
+import logging
 from typing import Any, Optional
 
 import requests
@@ -15,6 +16,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_PATH = "exa.language_server_pb.LanguageServerService"
+logger = logging.getLogger(__name__)
 
 
 def call_api(
@@ -48,12 +50,8 @@ def call_api(
         )
         if resp.status_code == 200:
             return resp.json()
-    except requests.exceptions.ConnectionError:
-        pass
-    except requests.exceptions.Timeout:
-        pass
-    except Exception:
-        pass
+    except (requests.exceptions.RequestException, ValueError) as exc:
+        logger.debug("LanguageServer API request failed: %s", exc)
     return None
 
 
@@ -98,7 +96,7 @@ def get_all_trajectories_merged(endpoints: list[dict]) -> tuple[dict[str, Any], 
                         if cid not in merged:
                             merged[cid] = info
                             cascade_ep[cid] = {"port": ep["port"], "csrf": ep["csrf"]}
-            except Exception as e:
+            except (KeyError, RuntimeError, ValueError) as e:
                 failed_eps.append((ep["port"], str(e)))
 
     return merged, cascade_ep, failed_eps
